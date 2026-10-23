@@ -11,6 +11,10 @@ export const env = {
   port: Number(process.env.PORT) || 3000,
   geminiApiKey: process.env.GEMINI_API_KEY,
   models: [process.env.GEMINI_MODEL, process.env.GEMINI_FALLBACK_MODEL].filter(Boolean),
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  // Lista separata da virgole, es. "http://localhost:5173,https://lookbook.netlify.app"
+  corsOrigin: (process.env.CORS_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((s) => s.trim().replace(/\/$/, ''))
+    .filter(Boolean),
   databaseUrl: process.env.DATABASE_URL,
 };
