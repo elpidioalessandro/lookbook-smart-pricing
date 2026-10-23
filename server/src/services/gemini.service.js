@@ -51,6 +51,14 @@ function getStatus(err) {
   try { return JSON.parse(err.message).error.code; } catch { return undefined; }
 }
 
+// Il modello non conosce la data: senza questo inventa la stagione
+function dateContext(now = new Date()) {
+  const m = now.getMonth(); // 0 = gennaio
+  const season = m <= 1 || m === 11 ? 'inverno' : m <= 4 ? 'primavera' : m <= 7 ? 'estate' : 'autunno';
+  const today = now.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Rome' });
+  return `Data di oggi: ${today} (stagione in Italia: ${season}). Usala per valutare la domanda stagionale e per i consigli sul periodo di pubblicazione.`;
+}
+
 async function callModel(model, item, image) {
   const res = await withTimeout(ai.models.generateContent({
     model,
@@ -58,7 +66,7 @@ async function callModel(model, item, image) {
       role: 'user',
       parts: [
         { inlineData: { mimeType: image.mimetype, data: image.buffer.toString('base64') } },
-        { text: `Dati del capo inseriti dall'utente:\n\`\`\`json\n${JSON.stringify(item)}\n\`\`\`` },
+        { text: `${dateContext()}\n\nDati del capo inseriti dall'utente:\n\`\`\`json\n${JSON.stringify(item)}\n\`\`\`` },
       ],
     }],
     config: {
