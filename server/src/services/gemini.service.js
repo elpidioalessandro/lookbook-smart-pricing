@@ -28,7 +28,7 @@ const responseSchema = {
   required: ['suggested_price', 'range', 'motivation', 'selling_tips', 'input_consistency'],
 };
 
-const RETRYABLE = [429, 500, 503];
+const RETRYABLE = [500, 503]; // 429 (quota) escluso: inutile riprovare, si passa al fallback
 const MAX_ATTEMPTS = 3;
 const TIMEOUT_MS = 20000; // oltre 20 s si passa al tentativo/modello successivo
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
