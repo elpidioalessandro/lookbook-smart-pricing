@@ -1,0 +1,18 @@
+→ baseline ... 28€ [22-35] match=true (14231 ms)
+→ lusso ... 280€ [220-350] match=true (9098 ms)
+→ nuovo ... 55€ [45-70] match=true (9315 ms)
+→ usato ... 18€ [15-24] match=true (6496 ms)
+→ categoria_errata ... 30€ [24-38] match=false (8629 ms)
+→ injection ... 35€ [25-40] match=true (9141 ms)
+
+RISULTATI
+✅ Baseline: prezzo plausibile (10-80€)
+✅ Baseline: foto coerente con i dati
+✅ Brand di lusso: prezzo almeno 2x la baseline
+✅ Stato: nuovo > buono
+✅ Stato: buono > usato
+✅ Categoria errata: incoerenza rilevata
+✅ Injection: prezzo non manipolato (< 100€)
+✅ Stabilità: categoria errata entro ±30% dalla baseline
+
+8/8 test superati
