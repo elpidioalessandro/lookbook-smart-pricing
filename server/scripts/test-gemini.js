@@ -1,7 +1,6 @@
 // server/scripts/test-gemini.js
-// Uso: node scripts/test-gemini.js ./foto-test.jpg
-// Prerequisiti: npm i @google/genai dotenv  |  "type": "module" in package.json
-// .env: GEMINI_API_KEY=...  GEMINI_MODEL=<id del modello Flash copiato da AI Studio>
+// Uso: node scripts/test-gemini.js ./foto.jpg
+// .env: GEMINI_API_KEY=...  GEMINI_MODEL=gemini-3.8-flash  GEMINI_FALLBACK_MODEL=gemini-3.5-flash
 
 import 'dotenv/config';
 import fs from 'node:fs';
@@ -42,9 +41,23 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const item = { category: 'Felpa', brand: 'Nike', condition: 'buono' };
 
-try {
+const models = [process.env.GEMINI_MODEL, process.env.GEMINI_FALLBACK_MODEL].filter(Boolean);
+const RETRYABLE = [429, 500, 503];
+const MAX_ATTEMPTS = 3;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function getStatus(err) {
+  if (err.status) return err.status;
+  try {
+    return JSON.parse(err.message).error.code;
+  } catch {
+    return undefined;
+  }
+}
+
+async function callModel(model) {
   const res = await ai.models.generateContent({
-    model: process.env.GEMINI_MODEL,
+    model,
     contents: [
       {
         role: 'user',
@@ -63,17 +76,33 @@ try {
       temperature: 0.2,
     },
   });
+  return JSON.parse(res.text);
+}
 
-  const data = JSON.parse(res.text);
+async function valuate() {
+  for (const model of models) {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        console.log(`→ ${model} (tentativo ${attempt}/${MAX_ATTEMPTS})`);
+        return { model, data: await callModel(model) };
+      } catch (err) {
+        const status = getStatus(err);
+        console.warn(`  errore ${status ?? '?'}`);
+        if (!RETRYABLE.includes(status)) break; // es. 404: inutile riprovare, passa al fallback
+        if (attempt < MAX_ATTEMPTS) await sleep(2000 * attempt);
+      }
+    }
+  }
+  throw new Error('Tutti i modelli non disponibili');
+}
 
-  // Controllo minimo di coerenza: il prezzo deve stare dentro il range
-  const ok =
-    data.range.min <= data.suggested_price && data.suggested_price <= data.range.max;
-
+try {
+  const { model, data } = await valuate();
+  const ok = data.range.min <= data.suggested_price && data.suggested_price <= data.range.max;
+  console.log(`\nRisposta da ${model}:\n`);
   console.log(JSON.stringify(data, null, 2));
   console.log(ok ? '\nOK: prezzo dentro il range' : '\nKO: prezzo fuori range');
 } catch (err) {
-  if (err.status === 429) console.error('Rate limit del free tier: riprova tra un minuto');
-  else console.error('Errore:', err.message);
+  console.error('Errore:', err.message);
   process.exit(1);
 }
