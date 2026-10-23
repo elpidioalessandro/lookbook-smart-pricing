@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-const required = ['GEMINI_API_KEY', 'GEMINI_MODEL'];
+const required = ['GEMINI_API_KEY', 'GEMINI_MODEL', 'DATABASE_URL'];
 const missing = required.filter((k) => !process.env[k]);
 if (missing.length) {
   console.error(`Variabili mancanti nel .env: ${missing.join(', ')}`);
@@ -12,4 +12,5 @@ export const env = {
   geminiApiKey: process.env.GEMINI_API_KEY,
   models: [process.env.GEMINI_MODEL, process.env.GEMINI_FALLBACK_MODEL].filter(Boolean),
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  databaseUrl: process.env.DATABASE_URL,
 };
