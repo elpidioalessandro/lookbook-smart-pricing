@@ -3,6 +3,12 @@ import { validateInput } from '../validators/valuation.validator.js';
 import { valuateItem } from '../services/gemini.service.js';
 import { insertValuation, listValuations, getValuationById } from '../repositories/valuation.repository.js';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
+
+// Identificativo anonimo generato dal browser (header X-Client-Id). Se manca o non è valido: null.
+const clientIdOf = (req) => (isUuid(req.get('X-Client-Id')) ? req.get('X-Client-Id').toLowerCase() : null);
+
 export async function createValuation(req, res, next) {
   try {
     const { errors, item } = validateInput(req.body, req.file);
@@ -17,7 +23,7 @@ export async function createValuation(req, res, next) {
     let saved = null;
     try {
       const imageSha256 = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
-      saved = await insertValuation({ item, image: req.file, imageSha256, data, meta });
+      saved = await insertValuation({ item, image: req.file, imageSha256, data, meta, clientId: clientIdOf(req) });
     } catch (dbErr) {
       console.error('[db] salvataggio fallito:', dbErr.message);
     }
@@ -30,8 +36,10 @@ export async function createValuation(req, res, next) {
 
 export async function getValuations(req, res, next) {
   try {
+    const clientId = clientIdOf(req);
+    if (!clientId) return res.json([]); // senza identificativo non c'è uno storico da mostrare
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
-    res.json(await listValuations(limit));
+    res.json(await listValuations(clientId, limit));
   } catch (err) {
     next(err);
   }
@@ -39,9 +47,9 @@ export async function getValuations(req, res, next) {
 
 export async function getValuation(req, res, next) {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id non valido' });
-    const row = await getValuationById(id);
+    // UUID casuale: non si può indovinare l'id di un'altra valutazione contando 1, 2, 3...
+    if (!isUuid(req.params.id)) return res.status(400).json({ error: 'id non valido' });
+    const row = await getValuationById(req.params.id.toLowerCase());
     if (!row) return res.status(404).json({ error: 'Valutazione non trovata' });
     res.json(row);
   } catch (err) {

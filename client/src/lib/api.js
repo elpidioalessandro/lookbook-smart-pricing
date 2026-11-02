@@ -1,3 +1,5 @@
+import { getClientId } from './clientId.js';
+
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
 const TIMEOUT_MS = 90000; // include il cold start di Render (fino a ~60 s); il server chiude entro 25 s
 
@@ -12,7 +14,11 @@ async function request(path, options = {}) {
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let res;
   try {
-    res = await fetch(`${API_URL}${path}`, { ...options, signal: controller.signal });
+    res = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: { 'X-Client-Id': getClientId(), ...options.headers },
+      signal: controller.signal,
+    });
   } catch (err) {
     if (err.name === 'AbortError') {
       throw friendlyError('Il server non ha risposto in tempo. Riprova tra qualche istante.');

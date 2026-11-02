@@ -1,5 +1,15 @@
 import app from './app.js';
 import { env } from './config/env.js';
+import { migrate } from './db/migrate.js';
+
+// Aggiorna lo schema prima di accettare richieste. Se fallisce, il server parte comunque:
+// le valutazioni funzionano, ma non vengono salvate (meta.saved = false).
+try {
+  await migrate();
+  console.log('[db] schema aggiornato');
+} catch (err) {
+  console.error('[db] migrazione fallita:', err.message);
+}
 
 app.listen(env.port, (err) => {
   if (err) {

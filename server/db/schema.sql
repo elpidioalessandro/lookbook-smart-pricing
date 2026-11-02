@@ -31,3 +31,16 @@ CREATE TABLE IF NOT EXISTS valuations (
 
 CREATE INDEX IF NOT EXISTS idx_valuations_created_at ON valuations (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_valuations_image ON valuations (image_sha256);
+
+-- ---------------------------------------------------------------------------
+-- v2 (revisione): id pubblici non enumerabili + storico per browser
+-- Idempotente: si può rilanciare senza effetti collaterali.
+-- ---------------------------------------------------------------------------
+
+-- L'id SERIAL resta solo interno; verso l'esterno si espone un UUID casuale
+ALTER TABLE valuations ADD COLUMN IF NOT EXISTS public_id UUID NOT NULL DEFAULT gen_random_uuid();
+CREATE UNIQUE INDEX IF NOT EXISTS idx_valuations_public_id ON valuations (public_id);
+
+-- Identificativo anonimo del browser che ha chiesto la valutazione (nessun dato personale)
+ALTER TABLE valuations ADD COLUMN IF NOT EXISTS client_id UUID;
+CREATE INDEX IF NOT EXISTS idx_valuations_client ON valuations (client_id, created_at DESC);
