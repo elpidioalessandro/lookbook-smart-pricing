@@ -37,8 +37,12 @@ export function validateOutput(d) {
   if (typeof d.motivation !== 'string' || d.motivation.trim().length < 10) errors.push('motivation mancante');
   if (!Array.isArray(d.selling_tips) || d.selling_tips.length < 1 || d.selling_tips.some((t) => typeof t !== 'string'))
     errors.push('selling_tips non validi');
-  if (!d.input_consistency || typeof d.input_consistency.matches !== 'boolean')
-    errors.push('input_consistency mancante');
+  const ic = d.input_consistency;
+  if (!ic || typeof ic.matches !== 'boolean') errors.push('input_consistency mancante');
+  else {
+    if (![...CATEGORIES, 'Altro'].includes(ic.detected_category)) errors.push('detected_category non valida');
+    if (typeof ic.brand_visible !== 'boolean') errors.push('brand_visible mancante');
+  }
 
   return errors;
 }
