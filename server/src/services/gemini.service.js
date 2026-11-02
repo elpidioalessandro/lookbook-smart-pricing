@@ -29,11 +29,11 @@ const responseSchema = {
   required: ['suggested_price', 'range', 'motivation', 'selling_tips', 'input_consistency'],
 };
 
-// Budget temporale. Il client abbandona a 90 s, cold start di Render incluso (~60 s):
-// il server deve chiudere entro 25 s, qualunque cosa succeda.
+// Budget temporale. Il client abbandona a 110 s, cold start di Render incluso (~60 s):
+// il server deve chiudere entro 40 s, qualunque cosa succeda.
 export const DEFAULTS = {
-  deadlineMs: 25000,       // scadenza complessiva della richiesta, tutti i tentativi inclusi
-  attemptTimeoutMs: 12000, // tetto per singolo tentativo (mai oltre il tempo residuo)
+  deadlineMs: 40000,       // scadenza complessiva della richiesta, tutti i tentativi inclusi
+  attemptTimeoutMs: 20000, // tetto per singolo tentativo (mai oltre il tempo residuo)
   maxAttempts: 2,          // per modello
   backoffMs: 1500,         // attesa tra un tentativo e il successivo dello stesso modello
   minAttemptMs: 2000,      // non avviare un tentativo se resta meno di così
