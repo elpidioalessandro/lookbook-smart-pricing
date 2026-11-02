@@ -37,6 +37,16 @@ export default function App() {
     const slowTimer = setTimeout(() => setSlow(true), 8000);
     try {
       const image = await resizeImage(values.image);
+      // Se il browser non sa comprimere il formato (es. HEIC su Chrome) resizeImage restituisce
+      // l'originale: il limite del server va controllato qui, prima di inviare
+      const maxBytes = config.maxUploadMb * 1024 * 1024;
+      if (image.size > maxBytes) {
+        const mb = (image.size / 1024 / 1024).toFixed(1);
+        throw Object.assign(
+          new Error(`Foto troppo pesante (${mb} MB, max ${config.maxUploadMb} MB). Questo browser non riesce a comprimerla: esportala in JPG o usa Safari.`),
+          { details: [] },
+        );
+      }
       const data = await valuate({ ...values, image });
       setResult(data);
       refreshHistory();
