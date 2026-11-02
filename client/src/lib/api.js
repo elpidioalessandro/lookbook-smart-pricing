@@ -1,5 +1,5 @@
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
-const TIMEOUT_MS = 90000; // include il cold start di Render (fino a ~60 s)
+const TIMEOUT_MS = 90000; // include il cold start di Render (fino a ~60 s); il server chiude entro 25 s
 
 function friendlyError(message, details = []) {
   const err = new Error(message);
@@ -34,6 +34,11 @@ async function request(path, options = {}) {
     throw friendlyError(`Errore imprevisto (${res.status}). Riprova più tardi.`);
   }
   return body;
+}
+
+// Categorie, stati e limite di upload arrivano dal server: unica fonte di verità
+export function getConfig() {
+  return request('/api/config');
 }
 
 export function valuate({ image, category, brand, condition }) {

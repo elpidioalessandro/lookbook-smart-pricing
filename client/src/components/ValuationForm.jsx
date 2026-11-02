@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CATEGORIES, CONDITIONS, MAX_RAW_MB } from '../lib/constants.js';
+import { MAX_RAW_MB } from '../lib/constants.js';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif';
 
-export default function ValuationForm({ onSubmit, loading, initial }) {
+export default function ValuationForm({ onSubmit, loading, initial, categories, conditions }) {
   const [file, setFile] = useState(null);
   const [category, setCategory] = useState(initial?.category ?? '');
   const [brand, setBrand] = useState(initial?.brand ?? '');
@@ -84,7 +84,7 @@ export default function ValuationForm({ onSubmit, loading, initial }) {
           <span>Categoria</span>
           <select value={category} onChange={(e) => setCategory(e.target.value)} required>
             <option value="" disabled>Scegli…</option>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </label>
 
@@ -103,7 +103,7 @@ export default function ValuationForm({ onSubmit, loading, initial }) {
         <fieldset className="field">
           <legend>Stato</legend>
           <div className="segmented">
-            {CONDITIONS.map((c) => (
+            {conditions.map((c) => (
               <label key={c.value} className={condition === c.value ? 'is-active' : ''}>
                 <input
                   type="radio"

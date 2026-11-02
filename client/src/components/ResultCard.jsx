@@ -1,10 +1,13 @@
 const eur = (n) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
-export default function ResultCard({ result, onFix }) {
+export default function ResultCard({ result, onFix, item, categories = [] }) {
   const { suggested_price, range, motivation, selling_tips, input_consistency, meta } = result;
   const span = range.max - range.min || 1;
   const pos = Math.min(100, Math.max(0, ((suggested_price - range.min) / span) * 100));
   const notGarment = !input_consistency.matches && suggested_price === 0;
+  const { detected_category, brand_visible } = input_consistency;
+  // Proponi la correzione solo se il modello ha riconosciuto una categoria diversa dalla nostra lista
+  const canFix = categories.includes(detected_category) && detected_category !== item?.category;
 
   return (
     <section className="card result" aria-live="polite">
@@ -15,8 +18,19 @@ export default function ResultCard({ result, onFix }) {
             Nella foto vediamo: <em>{input_consistency.detected_item}</em>.
             {!notGarment && ' La stima si basa sulla foto: correggi i dati per una valutazione più precisa.'}
           </p>
-          <button type="button" className="btn-ghost" onClick={onFix}>Correggi i dati</button>
+          {canFix && (
+            <button type="button" className="btn-ghost" onClick={onFix}>
+              Usa la categoria “{detected_category}”
+            </button>
+          )}
         </div>
+      )}
+
+      {!notGarment && brand_visible === false && item?.brand && (
+        <p className="note">
+          Il brand <strong>{item.brand}</strong> non è verificabile dalla foto: la stima assume il brand dichiarato.
+          Fotografa l’etichetta per rendere l’annuncio più credibile.
+        </p>
       )}
 
       {!notGarment && (

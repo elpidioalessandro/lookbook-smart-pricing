@@ -2,9 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import ValuationForm from './components/ValuationForm.jsx';
 import ResultCard from './components/ResultCard.jsx';
 import History from './components/History.jsx';
-import { valuate, getHistory } from './lib/api.js';
+import { valuate, getHistory, getConfig } from './lib/api.js';
 import { resizeImage } from './lib/resizeImage.js';
-import { CATEGORIES } from './lib/constants.js';
 
 export default function App() {
   const [loading, setLoading] = useState(false);
@@ -13,6 +12,15 @@ export default function App() {
   const [error, setError] = useState(null);
   const [history, setHistory] = useState([]);
   const [formInitial, setFormInitial] = useState(null);
+  const [config, setConfig] = useState(null);
+  const [configError, setConfigError] = useState(null);
+  const [lastItem, setLastItem] = useState(null);
+
+  const loadConfig = useCallback(() => {
+    getConfig().then(setConfig).catch(setConfigError);
+  }, []);
+
+  useEffect(loadConfig, [loadConfig]);
 
   const refreshHistory = useCallback(() => {
     getHistory(5).then(setHistory).catch(() => {}); // lo storico è accessorio: se fallisce non blocca nulla
@@ -24,6 +32,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setLastItem(values);
     // Su hosting gratuito il server può essere "addormentato": avvisiamo se ci mette tanto
     const slowTimer = setTimeout(() => setSlow(true), 8000);
     try {
@@ -41,10 +50,9 @@ export default function App() {
   }
 
   function handleFix() {
-    // Se il modello ha riconosciuto una categoria della nostra lista, la pre-seleziona
-    const detected = result?.input_consistency?.detected_item?.toLowerCase() ?? '';
-    const match = CATEGORIES.find((c) => detected.includes(c.toLowerCase()));
-    if (match) setFormInitial({ category: match });
+    // detected_category è un enum chiuso: o è una categoria della lista, o "Altro"
+    const detected = result?.input_consistency?.detected_category;
+    if (config?.categories.includes(detected)) setFormInitial({ category: detected });
     document.getElementById('valuation-form')?.scrollIntoView({ behavior: 'smooth' });
   }
 
@@ -60,7 +68,30 @@ export default function App() {
       </header>
 
       <main className="layout">
-        <ValuationForm onSubmit={handleSubmit} loading={loading} initial={formInitial} />
+        {config ? (
+          <ValuationForm
+            onSubmit={handleSubmit}
+            loading={loading}
+            initial={formInitial}
+            categories={config.categories}
+            conditions={config.conditions}
+          />
+        ) : (
+          <div className="card loading" role={configError ? 'alert' : undefined}>
+            {configError ? (
+              <>
+                <p>{configError.message}</p>
+                <button type="button" className="btn-ghost" onClick={() => { setConfigError(null); loadConfig(); }}>Riprova</button>
+              </>
+            ) : (
+              <>
+                <div className="spinner" aria-hidden="true" />
+                <p>Caricamento…</p>
+                <small>Se il server si sta svegliando può volerci fino a un minuto.</small>
+              </>
+            )}
+          </div>
+        )}
 
         <div className="output">
           {loading && (
@@ -80,7 +111,7 @@ export default function App() {
             </div>
           )}
 
-          {result && !loading && <ResultCard result={result} onFix={handleFix} />}
+          {result && !loading && <ResultCard result={result} onFix={handleFix} item={lastItem} categories={config?.categories ?? []} />}
 
           {!result && !loading && !error && (
             <div className="card placeholder">

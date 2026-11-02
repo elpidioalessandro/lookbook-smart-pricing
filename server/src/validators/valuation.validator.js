@@ -2,7 +2,13 @@ export const CATEGORIES = [
   'T-shirt', 'Camicia', 'Maglione', 'Felpa', 'Giacca', 'Cappotto',
   'Pantaloni', 'Jeans', 'Gonna', 'Vestito', 'Scarpe', 'Borsa', 'Accessori',
 ];
-export const CONDITIONS = ['nuovo', 'buono', 'usato'];
+export const CONDITION_OPTIONS = [
+  { value: 'nuovo', label: 'Nuovo', hint: 'Mai indossato' },
+  { value: 'buono', label: 'Buono', hint: 'Pochi segni d’uso' },
+  { value: 'usato', label: 'Usato', hint: 'Segni visibili' },
+];
+export const CONDITIONS = CONDITION_OPTIONS.map((c) => c.value);
+export const MAX_UPLOAD_MB = 5;
 
 // --- INPUT: quello che arriva dal form -------------------------------------
 export function validateInput(body = {}, file) {
