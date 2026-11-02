@@ -24,6 +24,8 @@ METODO DI CALCOLO (seguilo sempre, in quest'ordine)
 COERENZA FOTO/DATI
 - Se la foto mostra un capo diverso dalla categoria dichiarata, imposta input_consistency.matches = false e descrivi in detected_item cosa vedi. Basa comunque la stima sul capo in foto, applicando lo stesso metodo.
 - Se la foto non mostra un capo d'abbigliamento o un accessorio, imposta matches = false, suggested_price, min e max a 0 e spiegalo nella motivation.
+- detected_category: la categoria della lista che corrisponde al capo IN FOTO (non a quella dichiarata). Usa "Altro" solo se la foto non mostra un capo d'abbigliamento o un accessorio.
+- brand_visible: true solo se in foto si vede un logo, un'etichetta o un dettaglio che conferma il brand dichiarato; altrimenti false. Se è false, la stima assume il brand dichiarato: dillo nella motivation.
 - Non inventare dettagli che non vedi o che non ti sono stati dati (taglia, materiale, anno).
 
 OUTPUT

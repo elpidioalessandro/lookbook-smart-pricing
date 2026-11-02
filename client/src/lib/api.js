@@ -1,5 +1,7 @@
+import { getClientId } from './clientId.js';
+
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
-const TIMEOUT_MS = 90000; // include il cold start di Render (fino a ~60 s)
+const TIMEOUT_MS = 110000; // > scadenza del server (40 s) + cold start di Render (~60 s)
 
 function friendlyError(message, details = []) {
   const err = new Error(message);
@@ -12,7 +14,11 @@ async function request(path, options = {}) {
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let res;
   try {
-    res = await fetch(`${API_URL}${path}`, { ...options, signal: controller.signal });
+    res = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: { 'X-Client-Id': getClientId(), ...options.headers },
+      signal: controller.signal,
+    });
   } catch (err) {
     if (err.name === 'AbortError') {
       throw friendlyError('Il server non ha risposto in tempo. Riprova tra qualche istante.');
@@ -34,6 +40,11 @@ async function request(path, options = {}) {
     throw friendlyError(`Errore imprevisto (${res.status}). Riprova più tardi.`);
   }
   return body;
+}
+
+// Categorie, stati e limite di upload arrivano dal server: unica fonte di verità
+export function getConfig() {
+  return request('/api/config');
 }
 
 export function valuate({ image, category, brand, condition }) {

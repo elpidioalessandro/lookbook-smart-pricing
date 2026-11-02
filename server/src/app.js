@@ -6,6 +6,9 @@ import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 
+// Su Render l'app sta dietro un proxy: senza questo il rate limit vedrebbe un solo IP per tutti
+app.set('trust proxy', 1);
+
 app.use(cors({ origin: env.corsOrigin }));
 app.use(express.json());
 

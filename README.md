@@ -38,10 +38,13 @@ L'utente carica una foto e inserisce categoria, brand e stato. Il sistema restit
 
 | Metodo | Endpoint | Descrizione |
 |---|---|---|
+| `GET` | `/api/config` | Categorie, stati e limite di upload: unica fonte di verità per il form |
 | `POST` | `/api/valuate` | `multipart/form-data`: `image`, `category`, `brand`, `condition` (`nuovo` \| `buono` \| `usato`) |
-| `GET` | `/api/valuations?limit=20` | Storico delle ultime valutazioni |
-| `GET` | `/api/valuations/:id` | Dettaglio completo di una valutazione |
+| `GET` | `/api/valuations?limit=20` | Storico **del browser che chiama** (header `X-Client-Id`) |
+| `GET` | `/api/valuations/:id` | Dettaglio di una valutazione; `id` è un UUID casuale, non un numero progressivo |
 | `GET` | `/api/health` | Stato del servizio |
+
+L'header `X-Client-Id` è un UUID anonimo generato dal browser e salvato in `localStorage`: serve solo a mostrare a ciascuno il proprio storico.
 
 Risposta di `POST /api/valuate`:
 
@@ -51,8 +54,13 @@ Risposta di `POST /api/valuate`:
   "range": { "min": 25, "max": 40 },
   "motivation": "Trench Zara, fascia mass market (listino stimato ~80 €). Per lo stato buono applico il 40% ...",
   "selling_tips": ["Fotografa l'etichetta con taglia e composizione", "..."],
-  "input_consistency": { "matches": true, "detected_item": "Trench beige" },
-  "meta": { "model": "gemini-3.5-flash", "attempts": 1, "latency_ms": 5499, "id": 12, "saved": true }
+  "input_consistency": {
+    "matches": true,
+    "detected_item": "Trench beige",
+    "detected_category": "Cappotto",
+    "brand_visible": false
+  },
+  "meta": { "model": "gemini-3.5-flash", "attempts": 1, "latency_ms": 5499, "id": "380943f3-161d-4b81-a8df-b94c44b08184", "saved": true }
 }
 ```
 
@@ -65,18 +73,25 @@ Risposta di `POST /api/valuate`:
 2. **Validazione applicativa** (`valuation.validator.js`): prezzi numerici e plausibili, `min ≤ prezzo ≤ max`, campi obbligatori presenti. Una risposta non valida conta come tentativo fallito e viene ritentata.
 3. **Vincolo `CHECK` nel database**: un prezzo fuori range non può essere salvato.
 
-Anche l'**input** è validato: categoria e stato da liste chiuse, brand max 50 caratteri, solo immagini fino a 5 MB.
+Anche l'**input** è validato: categoria e stato da liste chiuse, brand max 50 caratteri, immagini fino a 5 MB. Il tipo del file è verificato **leggendo i primi byte** (`file-type`), non fidandosi del mimetype dichiarato dal browser: un file di testo rinominato `.jpg` viene rifiutato.
 
 ### 2. Coerenza tra foto e dati
-Il modello confronta la foto con i dati dichiarati e restituisce `input_consistency`. Se l'utente dichiara "Scarpe" ma la foto mostra un trench, l'interfaccia mostra un avviso e la stima si basa sulla foto.
+Il modello confronta la foto con i dati dichiarati e restituisce `input_consistency`:
+- `detected_category`: la categoria vista in foto, vincolata da un **enum** alle categorie del form (più `Altro`). Se l'utente dichiara "Scarpe" e la foto mostra un trench, l'interfaccia propone **"Usa la categoria Cappotto"** con un clic;
+- `brand_visible`: `false` se in foto non c'è nulla che confermi il brand dichiarato. L'interfaccia lo segnala: la stima assume il brand inserito dall'utente.
 
 ### 3. Resilienza
+La richiesta ha una **scadenza complessiva di 40 s**, tutti i tentativi inclusi: sempre più bassa del timeout del client (110 s, che deve coprire anche il cold start di Render). Ogni tentativo usa il tempo residuo, mai più di 20 s (tarato sulle latenze misurate, fino a ~15 s).
+
 | Errore | Comportamento |
 |---|---|
-| 500 / 503 / output non valido | fino a 3 tentativi con attesa crescente |
-| 429 (quota esaurita) | nessun retry, passaggio immediato al modello di fallback |
-| Nessuna risposta entro 20 s | passaggio immediato al modello di fallback |
+| 500 / 503 / output non valido | 1 nuovo tentativo sullo stesso modello, solo se resta tempo |
+| 429 (quota esaurita) / 400 / 404 | nessun retry, passaggio immediato al modello di fallback |
+| Tentativo oltre il tempo limite | la chiamata viene **annullata** con `AbortController` e si passa al fallback |
+| Scadenza complessiva raggiunta | 503 con messaggio comprensibile per l'utente |
 | Database non disponibile | la valutazione viene restituita comunque (`saved: false`) e l'errore loggato |
+
+Nota: l'annullamento chiude la connessione lato client, ma per Google la richiesta conta comunque. A proteggere davvero la quota sono la scadenza complessiva (meno tentativi) e i limiti di richiesta.
 
 ### 4. Scelta del modello basata su misure
 Benchmark con la stessa foto (`scripts/bench-models.js`):
@@ -114,8 +129,27 @@ In più: il contenuto inserito dall'utente è trattato come dato e mai come istr
 | v1 (`systemPrompt.v1.js`) | 5/7 (stato ignorato, ordine nuovo/buono/usato non rispettato) |
 | v2 | 8/8 su 3 esecuzioni consecutive (24/24) |
 
-### 7. Privacy
-La foto **non viene salvata**: nel database finisce solo la sua impronta SHA-256, oltre a input, output, modello e latenza.
+### 7. Sicurezza e privacy
+| Rischio | Contromisura |
+|---|---|
+| Uno script esaurisce la quota gratuita di Gemini | **rate limit**: 10 valutazioni ogni 15 minuti per IP, tetto globale di 200 al giorno (`express-rate-limit`). I limiti scattano prima della lettura del file |
+| Lettura delle valutazioni altrui contando gli id | verso l'esterno solo **UUID casuali**; lo storico è filtrato per browser |
+| File non immagine travestiti | controllo dei byte del file lato server |
+| Dati sensibili | la foto **non viene salvata**: nel database finiscono solo la sua impronta SHA-256, input, output, modello e latenza |
+
+Il CORS non è una protezione contro le chiamate dirette (curl, script): limita solo quali siti possono usare l'API da un browser.
+
+### 8. Test
+`npm test` (in `server/`) esegue **31 test** con `node:test`, senza chiamare Gemini né il database:
+
+| File | Cosa verifica |
+|---|---|
+| `validator.test.js` | validazione di input e output: liste chiuse, prezzi fuori range, enum di `detected_category` |
+| `gemini.service.test.js` | logica di retry con un **SDK finto**: retry su 503, nessun retry su 429, abort al timeout, rispetto della scadenza complessiva |
+| `upload.test.js` | riconoscimento del formato dai byte |
+| `http.test.js` | app Express reale: `/api/config`, id numerici rifiutati, storico senza identificativo, rate limit (429) |
+
+La pipeline GitHub Actions (`.github/workflows/ci.yml`) esegue i test e il build del client a ogni push. La suite `eval-prompt.js` resta separata: misura la qualità del prompt chiamando il modello reale, quindi consuma quota e non gira in CI.
 
 ---
 
@@ -139,7 +173,12 @@ GEMINI_MODEL=gemini-3.5-flash
 GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 DATABASE_URL=postgresql://...
 CORS_ORIGIN=http://localhost:5173
+# opzionali
+RATE_LIMIT_PER_IP=1000        # in locale: evita il blocco durante le eval (default 10)
+RATE_LIMIT_GLOBAL_DAILY=200
 ```
+
+Lo schema del database si aggiorna da solo all'avvio del server (`db/schema.sql` è idempotente); `npm run db:init` resta disponibile per farlo a mano.
 
 ### Front end
 ```bash
@@ -154,7 +193,8 @@ npm run dev            # http://localhost:5173
 |---|---|
 | `node scripts/test-gemini.js ./foto.jpg` | test diretto della chiamata a Gemini |
 | `node scripts/bench-models.js ./foto.jpg` | confronto di latenza tra modelli |
-| `node scripts/eval-prompt.js ./foto.jpg` | suite di test del prompt (server acceso) |
+| `npm test` | unit test (31) |
+| `node scripts/eval-prompt.js ./foto.jpg` | valutazione della qualità del prompt sul modello reale (server acceso) |
 
 ---
 
@@ -168,10 +208,12 @@ npm run dev            # http://localhost:5173
 └── server/                     Node + Express
     ├── db/schema.sql
     ├── scripts/                db-init, test-gemini, bench-models, eval-prompt
+    ├── test/                   unit e integration test (node:test)
     └── src/
         ├── config/             env, db
-        ├── controllers/
-        ├── middleware/         upload, errorHandler
+        ├── controllers/        valuation, config
+        ├── db/                 migrate
+        ├── middleware/         upload, rateLimit, errorHandler
         ├── prompts/            systemPrompt (v2), systemPrompt.v1
         ├── repositories/
         ├── routes/
@@ -185,6 +227,7 @@ npm run dev            # http://localhost:5173
 
 - **Variabilità:** a parità di input il prezzo può oscillare di circa ±25% tra due richieste. Possibile soluzione: temperatura 0 e riuso della valutazione per foto identiche (l'impronta SHA-256 è già salvata).
 - **Stima, non dati di mercato:** il prezzo deriva dalle conoscenze del modello, non da annunci reali confrontabili.
-- **Brand non verificabile:** se il brand dichiarato non è riconoscibile in foto, il modello lo segnala nella motivazione ma l'avviso dell'interfaccia riguarda solo la categoria.
+- **Brand non verificabile:** `brand_visible` segnala solo se il brand *si vede*; non distingue un capo originale da uno contraffatto.
 - **Free tier:** quota giornaliera limitata su Gemini e cold start su Render. Sul free tier Google può usare input e output per migliorare i propri modelli: non adatto a dati reali di clienti.
-- **Nessuna autenticazione:** lo storico è pubblico e condiviso.
+- **Nessuna autenticazione:** lo storico è legato al browser, non a un account. Cancellando i dati del sito lo storico non è più visibile.
+- **Rate limit in memoria:** i contatori si azzerano a ogni riavvio del server e non sono condivisi tra più istanze. Con più istanze servirebbe uno store condiviso (es. Redis).

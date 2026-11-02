@@ -2,7 +2,13 @@ export const CATEGORIES = [
   'T-shirt', 'Camicia', 'Maglione', 'Felpa', 'Giacca', 'Cappotto',
   'Pantaloni', 'Jeans', 'Gonna', 'Vestito', 'Scarpe', 'Borsa', 'Accessori',
 ];
-export const CONDITIONS = ['nuovo', 'buono', 'usato'];
+export const CONDITION_OPTIONS = [
+  { value: 'nuovo', label: 'Nuovo', hint: 'Mai indossato' },
+  { value: 'buono', label: 'Buono', hint: 'Pochi segni d’uso' },
+  { value: 'usato', label: 'Usato', hint: 'Segni visibili' },
+];
+export const CONDITIONS = CONDITION_OPTIONS.map((c) => c.value);
+export const MAX_UPLOAD_MB = 5;
 
 // --- INPUT: quello che arriva dal form -------------------------------------
 export function validateInput(body = {}, file) {
@@ -37,8 +43,12 @@ export function validateOutput(d) {
   if (typeof d.motivation !== 'string' || d.motivation.trim().length < 10) errors.push('motivation mancante');
   if (!Array.isArray(d.selling_tips) || d.selling_tips.length < 1 || d.selling_tips.some((t) => typeof t !== 'string'))
     errors.push('selling_tips non validi');
-  if (!d.input_consistency || typeof d.input_consistency.matches !== 'boolean')
-    errors.push('input_consistency mancante');
+  const ic = d.input_consistency;
+  if (!ic || typeof ic.matches !== 'boolean') errors.push('input_consistency mancante');
+  else {
+    if (![...CATEGORIES, 'Altro'].includes(ic.detected_category)) errors.push('detected_category non valida');
+    if (typeof ic.brand_visible !== 'boolean') errors.push('brand_visible mancante');
+  }
 
   return errors;
 }
